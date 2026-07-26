@@ -1,0 +1,8 @@
+{
+  "name": " IPEZERO",
+  "description": "Sistema de controle de indicadores IPE, pontuação por turno, ranking mensal e histórico de lançamentos para operações industriais.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
