@@ -61,7 +61,11 @@ export default function App() {
             {activeTab === 'ranking' && <RankingDashboard records={records} />}
 
             {activeTab === 'history' && (
-              <HistoryTable records={records} onRecordDeleted={handleRecordDeleted} />
+              <HistoryTable
+                records={records}
+                onRecordDeleted={handleRecordDeleted}
+                onRecordUpdated={handleSaveSuccess}
+              />
             )}
 
             {activeTab === 'manager' && (

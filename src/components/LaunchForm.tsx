@@ -220,7 +220,7 @@ export default function LaunchForm({ onSaveSuccess, existingRecords }: LaunchFor
       originalSelects.forEach((orig) => {
         const selectedOption = orig.options[orig.selectedIndex];
         if (selectedOption) {
-          Array.from(orig.options).forEach((opt) => opt.removeAttribute('selected'));
+          Array.from(orig.options).forEach((opt: HTMLOptionElement) => opt.removeAttribute('selected'));
           selectedOption.setAttribute('selected', 'selected');
         }
       });

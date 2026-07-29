@@ -3,6 +3,7 @@ import {
   History,
   Trash2,
   Eye,
+  Pencil,
   Filter,
   Calendar,
   X,
@@ -14,13 +15,15 @@ import {
 } from 'lucide-react';
 import { IPERecord, ShiftType, IV_METAS } from '../types';
 import { deleteRecord } from '../lib/recordsService';
+import EditRecordModal from './EditRecordModal';
 
 interface HistoryTableProps {
   records: IPERecord[];
   onRecordDeleted: () => void;
+  onRecordUpdated?: () => void;
 }
 
-export default function HistoryTable({ records, onRecordDeleted }: HistoryTableProps) {
+export default function HistoryTable({ records, onRecordDeleted, onRecordUpdated }: HistoryTableProps) {
   // Filters
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
@@ -28,6 +31,9 @@ export default function HistoryTable({ records, onRecordDeleted }: HistoryTableP
 
   // Selected Record for Detail Modal
   const [detailRecord, setDetailRecord] = useState<IPERecord | null>(null);
+
+  // Selected Record for Edit Modal
+  const [editRecord, setEditRecord] = useState<IPERecord | null>(null);
 
   // Selected Record for Delete Modal
   const [deleteCandidate, setDeleteCandidate] = useState<IPERecord | null>(null);
@@ -236,6 +242,15 @@ export default function HistoryTable({ records, onRecordDeleted }: HistoryTableP
                         </button>
 
                         <button
+                          id={`history-edit-${r.id}`}
+                          onClick={() => setEditRecord(r)}
+                          className="inline-flex items-center space-x-1 bg-slate-800 hover:bg-cyan-600 text-cyan-300 hover:text-white px-3 py-1.5 rounded-lg border border-slate-700 text-xs font-bold transition-all"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                          <span>Editar</span>
+                        </button>
+
+                        <button
                           id={`history-delete-${r.id}`}
                           onClick={() => setDeleteCandidate(r)}
                           className="inline-flex items-center space-x-1 bg-red-900/40 hover:bg-red-600 text-red-300 hover:text-white px-3 py-1.5 rounded-lg border border-red-700/50 text-xs font-bold transition-all"
@@ -418,7 +433,19 @@ export default function HistoryTable({ records, onRecordDeleted }: HistoryTableP
               )}
             </div>
 
-            <div className="flex justify-end pt-2 border-t border-slate-800">
+            <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+              <button
+                onClick={() => {
+                  const target = detailRecord;
+                  setDetailRecord(null);
+                  setEditRecord(target);
+                }}
+                className="inline-flex items-center space-x-1 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs rounded-lg transition"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                <span>Editar Este Lançamento</span>
+              </button>
+
               <button
                 onClick={() => setDetailRecord(null)}
                 className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-lg"
@@ -428,6 +455,22 @@ export default function HistoryTable({ records, onRecordDeleted }: HistoryTableP
             </div>
           </div>
         </div>
+      )}
+
+      {/* Edit Record Modal */}
+      {editRecord && (
+        <EditRecordModal
+          record={editRecord}
+          existingRecords={records}
+          onClose={() => setEditRecord(null)}
+          onSaveSuccess={() => {
+            if (onRecordUpdated) {
+              onRecordUpdated();
+            } else {
+              onRecordDeleted();
+            }
+          }}
+        />
       )}
     </div>
   );
