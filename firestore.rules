@@ -1,0 +1,16 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net - Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Operational IPE records collection
+    match /ipe_records/{recordId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+  }
+}

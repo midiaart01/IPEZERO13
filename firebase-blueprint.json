@@ -1,0 +1,46 @@
+{
+  "entities": {
+    "IPERecord": {
+      "title": "IPERecord",
+      "description": "Lançamento de indicadores IPE para turno industrial",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID do registro" },
+        "date": { "type": "string", "description": "Data do lançamento YYYY-MM-DD" },
+        "shift": { "type": "string", "enum": ["A", "B", "C", "D"], "description": "Turno" },
+        "sala1_ipe": { "type": "number" },
+        "sala2_ipe": { "type": "number" },
+        "extrato_agua_s1": { "type": "number" },
+        "extrato_agua_s2": { "type": "number" },
+        "ctf1_perda_pct": { "type": "number" },
+        "ctf3_perda_pct": { "type": "number" },
+        "ctf1_perda_hl": { "type": "number" },
+        "ctf3_perda_hl": { "type": "number" },
+        "ctf1_deslodamentos": { "type": "number" },
+        "ctf3_deslodamentos": { "type": "number" },
+        "centrifuga_brux_hl": { "type": "number" },
+        "f01_perda_pct": { "type": "number" },
+        "f02_perda_pct": { "type": "number" },
+        "f1_perda_hl": { "type": "number" },
+        "f2_perda_hl": { "type": "number" },
+        "f1_extratinho": { "type": "number" },
+        "f2_extratinho": { "type": "number" },
+        "pi_brassagem": { "type": "number" },
+        "pi_adega": { "type": "number" },
+        "pi_filtracao": { "type": "number" },
+        "ivsScore": { "type": "number" },
+        "piScore": { "type": "number" },
+        "totalScore": { "type": "number" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "date", "shift", "ivsScore", "piScore", "totalScore"]
+    }
+  },
+  "firestore": {
+    "/ipe_records/{recordId}": {
+      "schema": "IPERecord",
+      "description": "Coleção de lançamentos de indicadores IPE por turno"
+    }
+  }
+}
