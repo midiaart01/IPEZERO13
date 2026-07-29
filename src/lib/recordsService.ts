@@ -5,14 +5,26 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
-  query,
-  orderBy
+  onSnapshot,
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from './firebase';
 import { IPERecord, ShiftType } from '../types';
 
 const LOCAL_STORAGE_KEY = 'ipe_records_data_v1';
 const FIRESTORE_COLLECTION = 'ipe_records';
+
+/**
+ * Remove undefined values to prevent Firestore setDoc/updateDoc errors
+ */
+function sanitizeObject<T extends Record<string, any>>(obj: T): Record<string, any> {
+  const clean: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      clean[key] = value;
+    }
+  }
+  return clean;
+}
 
 // Initial seed data used if local fallback or database reset is triggered
 export function getInitialSeedData(): IPERecord[] {
@@ -203,19 +215,67 @@ function saveLocalRecords(data: IPERecord[]): void {
 }
 
 /**
- * FETCH ALL RECORDS FROM FIRESTORE
+ * SUBSCRIBE TO REALTIME FIRESTORE UPDATES
+ */
+export function subscribeToRecords(onUpdate: (records: IPERecord[]) => void): () => void {
+  const colRef = collection(db, FIRESTORE_COLLECTION);
+
+  const unsubscribe = onSnapshot(
+    colRef,
+    async (snapshot) => {
+      if (snapshot.empty) {
+        // If empty in Firestore, seed initial records
+        const seeds = getInitialSeedData();
+        for (const seed of seeds) {
+          try {
+            await setDoc(doc(db, FIRESTORE_COLLECTION, seed.id), sanitizeObject(seed));
+          } catch (e) {
+            console.error('Erro ao semear Firestore:', e);
+          }
+        }
+        saveLocalRecords(seeds);
+        onUpdate(seeds);
+        return;
+      }
+
+      const records: IPERecord[] = snapshot.docs.map((d) => ({
+        ...(d.data() as IPERecord),
+        id: d.id,
+      }));
+
+      // Sort by date descending
+      records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      saveLocalRecords(records);
+      onUpdate(records);
+    },
+    (error) => {
+      console.warn('Erro na sincronização Firestore em tempo real, usando cache local:', error);
+      const localData = getLocalRecords();
+      if (localData.length === 0) {
+        const seeds = getInitialSeedData();
+        saveLocalRecords(seeds);
+        onUpdate(seeds);
+      } else {
+        onUpdate(localData);
+      }
+    }
+  );
+
+  return unsubscribe;
+}
+
+/**
+ * FETCH ALL RECORDS FROM FIRESTORE ONCE
  */
 export async function fetchRecords(): Promise<IPERecord[]> {
   try {
     const colRef = collection(db, FIRESTORE_COLLECTION);
-    const q = query(colRef, orderBy('date', 'desc'));
-    const snapshot = await getDocs(q);
+    const snapshot = await getDocs(colRef);
 
     if (snapshot.empty) {
-      // If Firestore is empty, seed it with initial records so everyone gets started with data
       const seeds = getInitialSeedData();
       for (const seed of seeds) {
-        await setDoc(doc(db, FIRESTORE_COLLECTION, seed.id), seed);
+        await setDoc(doc(db, FIRESTORE_COLLECTION, seed.id), sanitizeObject(seed));
       }
       saveLocalRecords(seeds);
       return seeds;
@@ -226,19 +286,11 @@ export async function fetchRecords(): Promise<IPERecord[]> {
       id: d.id,
     }));
 
-    // Sort by date descending, then created_at / shift
     records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     saveLocalRecords(records);
     return records;
   } catch (error) {
     console.warn('Erro ao buscar dados do Firestore, usando fallback local:', error);
-    // Wrap error logger if permission issue
-    try {
-      handleFirestoreError(error, OperationType.GET, FIRESTORE_COLLECTION);
-    } catch {
-      // continue to fallback
-    }
-
     const localData = getLocalRecords();
     if (localData.length === 0) {
       const seeds = getInitialSeedData();
@@ -274,21 +326,23 @@ export async function saveRecord(recordData: Omit<IPERecord, 'id' | 'createdAt'>
     createdAt: new Date().toISOString(),
   };
 
+  const cleanData = sanitizeObject(newRecord);
+
   try {
     const docRef = doc(db, FIRESTORE_COLLECTION, newId);
-    await setDoc(docRef, newRecord);
+    await setDoc(docRef, cleanData);
   } catch (error) {
-    console.warn('Erro ao salvar no Firestore:', error);
+    console.error('Erro ao salvar no Firestore:', error);
     try {
       handleFirestoreError(error, OperationType.WRITE, `${FIRESTORE_COLLECTION}/${newId}`);
-    } catch {
-      // continue to fallback
+    } catch (e) {
+      console.warn('Usando fallback local devido ao erro:', e);
     }
   }
 
   // Update local cache
   const localList = getLocalRecords();
-  const updatedList = [newRecord, ...localList];
+  const updatedList = [newRecord, ...localList.filter((r) => r.id !== newId)];
   saveLocalRecords(updatedList);
 
   return newRecord;
@@ -300,15 +354,17 @@ export const createRecord = saveRecord;
  * UPDATE EXISTING RECORD IN FIRESTORE
  */
 export async function updateRecord(id: string, updatedFields: Partial<IPERecord>): Promise<IPERecord> {
+  const cleanFields = sanitizeObject(updatedFields);
+
   try {
     const docRef = doc(db, FIRESTORE_COLLECTION, id);
-    await updateDoc(docRef, updatedFields);
+    await updateDoc(docRef, cleanFields);
   } catch (error) {
-    console.warn('Erro ao atualizar no Firestore:', error);
+    console.error('Erro ao atualizar no Firestore:', error);
     try {
       handleFirestoreError(error, OperationType.UPDATE, `${FIRESTORE_COLLECTION}/${id}`);
-    } catch {
-      // continue to fallback
+    } catch (e) {
+      console.warn('Usando fallback local devido ao erro:', e);
     }
   }
 
@@ -348,11 +404,11 @@ export async function deleteRecord(id: string): Promise<void> {
     const docRef = doc(db, FIRESTORE_COLLECTION, id);
     await deleteDoc(docRef);
   } catch (error) {
-    console.warn('Erro ao deletar no Firestore:', error);
+    console.error('Erro ao deletar no Firestore:', error);
     try {
       handleFirestoreError(error, OperationType.DELETE, `${FIRESTORE_COLLECTION}/${id}`);
-    } catch {
-      // continue to fallback
+    } catch (e) {
+      console.warn('Usando fallback local devido ao erro:', e);
     }
   }
 
@@ -368,22 +424,20 @@ export async function resetRecords(): Promise<void> {
   const seedData = getInitialSeedData();
 
   try {
-    // Delete existing documents in Firestore
     const snapshot = await getDocs(collection(db, FIRESTORE_COLLECTION));
     for (const d of snapshot.docs) {
       await deleteDoc(doc(db, FIRESTORE_COLLECTION, d.id));
     }
 
-    // Insert seeds
     for (const seed of seedData) {
-      await setDoc(doc(db, FIRESTORE_COLLECTION, seed.id), seed);
+      await setDoc(doc(db, FIRESTORE_COLLECTION, seed.id), sanitizeObject(seed));
     }
   } catch (error) {
-    console.warn('Erro ao resetar dados no Firestore:', error);
+    console.error('Erro ao resetar dados no Firestore:', error);
     try {
       handleFirestoreError(error, OperationType.WRITE, FIRESTORE_COLLECTION);
-    } catch {
-      // continue to fallback
+    } catch (e) {
+      console.warn('Usando fallback local para reset:', e);
     }
   }
 

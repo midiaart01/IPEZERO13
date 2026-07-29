@@ -191,8 +191,37 @@ export default function LaunchForm({ onSaveSuccess, existingRecords }: LaunchFor
       }
 
       await createRecord(recordData);
-      setSuccessMessage('Lançamento salvo com sucesso no Supabase.');
+      setSuccessMessage('Lançamento salvo com sucesso no banco de dados! O registro já está disponível no Histórico.');
       setErrorMessage(null);
+
+      // Clear input fields
+      setSala1Ipe('');
+      setSala2Ipe('');
+      setExtratoAguaS1('');
+      setExtratoAguaS2('');
+      setCtf1PerdaPct('');
+      setCtf3PerdaPct('');
+      setCtf1PerdaHl('');
+      setCtf3PerdaHl('');
+      setCtf1Deslodamentos('');
+      setCtf3Deslodamentos('');
+      setCentrifugaBruxHl('');
+      setF01PerdaPct('');
+      setF02PerdaPct('');
+      setF1PerdaHl('');
+      setF2PerdaHl('');
+      setF1Extratinho('');
+      setF2Extratinho('');
+      setPiBrassagem('0');
+      setPiAdega('0');
+      setPiFiltracao('0');
+      setNotes('');
+
+      // Auto advance shift to next shift
+      const shiftOrder: ShiftType[] = ['A', 'B', 'C', 'D'];
+      const nextShift = shiftOrder[(shiftOrder.indexOf(shift) + 1) % 4];
+      setShift(nextShift);
+
       onSaveSuccess();
     } catch (err: any) {
       setErrorMessage(err.message || 'Erro ao salvar o lançamento.');

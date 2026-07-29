@@ -5,17 +5,25 @@ import RankingDashboard from './components/RankingDashboard';
 import HistoryTable from './components/HistoryTable';
 import ManagerPanel from './components/ManagerPanel';
 import { IPERecord } from './types';
-import { fetchRecords as getRecords } from './lib/recordsService';
+import { fetchRecords, subscribeToRecords } from './lib/recordsService';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'launch' | 'ranking' | 'history' | 'manager'>('launch');
   const [records, setRecords] = useState<IPERecord[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Fetch records using Supabase / service layer
+  // Subscribe to real-time Firestore changes so all tabs / incognito windows see additions instantly
+  useEffect(() => {
+    const unsubscribe = subscribeToRecords((data) => {
+      setRecords(data);
+      setIsLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
   const loadData = useCallback(async () => {
     try {
-      const data = await getRecords();
+      const data = await fetchRecords();
       setRecords(data);
     } catch (err) {
       console.error('Erro ao buscar lançamentos:', err);
@@ -23,10 +31,6 @@ export default function App() {
       setIsLoading(false);
     }
   }, []);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
 
   const handleSaveSuccess = () => {
     loadData();
@@ -50,7 +54,7 @@ export default function App() {
         {isLoading ? (
           <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
             <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
-            <p className="text-sm font-bold text-slate-400">Carregando dados do sistema IPE...</p>
+            <p className="text-sm font-bold text-slate-400">Carregando dados do sistema IPE em tempo real...</p>
           </div>
         ) : (
           <>
