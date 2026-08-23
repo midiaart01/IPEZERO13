@@ -5,6 +5,9 @@ export interface IPERecord {
   date: string; // YYYY-MM-DD
   shift: ShiftType;
   createdAt: string;
+  updatedAt?: string;
+  createdBy?: string;
+  updatedBy?: string;
 
   // Brassagem
   sala1_ipe: number | null; // Meta: < -0.5

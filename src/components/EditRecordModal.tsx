@@ -75,9 +75,15 @@ export default function EditRecordModal({
     record.f2_extratinho !== null ? String(record.f2_extratinho) : ''
   );
 
-  const [pi_brassagem, setPiBrassagem] = useState<string>(String(record.pi_brassagem ?? 0));
-  const [pi_adega, setPiAdega] = useState<string>(String(record.pi_adega ?? 0));
-  const [pi_filtracao, setPiFiltracao] = useState<string>(String(record.pi_filtracao ?? 0));
+  const [pi_brassagem, setPiBrassagem] = useState<string>(
+    record.pi_brassagem !== undefined && record.pi_brassagem !== null ? String(record.pi_brassagem) : ''
+  );
+  const [pi_adega, setPiAdega] = useState<string>(
+    record.pi_adega !== undefined && record.pi_adega !== null ? String(record.pi_adega) : ''
+  );
+  const [pi_filtracao, setPiFiltracao] = useState<string>(
+    record.pi_filtracao !== undefined && record.pi_filtracao !== null ? String(record.pi_filtracao) : ''
+  );
 
   const [notes, setNotes] = useState<string>(record.notes || '');
 
@@ -93,7 +99,7 @@ export default function EditRecordModal({
   // Helper to parse float safely
   const parseVal = (str: string): number | null => {
     if (!str || str.trim() === '') return null;
-    const cleanStr = str.replace(',', '.');
+    const cleanStr = str.replace(',', '.').trim();
     const num = parseFloat(cleanStr);
     return isNaN(num) ? null : num;
   };
@@ -102,6 +108,7 @@ export default function EditRecordModal({
   const evaluateIV = (key: string, rawVal: string): boolean | null => {
     if (rawVal.trim() === '') return null;
     const val = parseVal(rawVal);
+    if (val === null) return null;
     const metaObj = IV_METAS.find((m) => m.key === key);
     if (!metaObj) return null;
     return metaObj.check(val);

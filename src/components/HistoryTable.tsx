@@ -107,9 +107,9 @@ export default function HistoryTable({ records, onRecordDeleted, onRecordUpdated
             </div>
           </div>
 
-          <div className="flex items-center space-x-2 text-xs font-bold text-slate-300 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 self-start md:self-auto">
+          <div className="flex items-center space-x-2 text-xs font-bold text-slate-300 bg-slate-800 px-3 py-2 rounded-xl border border-slate-700 self-start md:self-auto">
             <Layers className="w-4 h-4 text-cyan-400" />
-            <span>Total Encontrado: {filteredRecords.length} registros</span>
+            <span>Total: {filteredRecords.length} {filteredRecords.length === 1 ? 'registro' : 'registros'}</span>
           </div>
         </div>
 

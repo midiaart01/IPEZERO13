@@ -42,9 +42,9 @@ export default function LaunchForm({ onSaveSuccess, existingRecords }: LaunchFor
   const [f1_extratinho, setF1Extratinho] = useState<string>('');
   const [f2_extratinho, setF2Extratinho] = useState<string>('');
 
-  const [pi_brassagem, setPiBrassagem] = useState<string>('0');
-  const [pi_adega, setPiAdega] = useState<string>('0');
-  const [pi_filtracao, setPiFiltracao] = useState<string>('0');
+  const [pi_brassagem, setPiBrassagem] = useState<string>('');
+  const [pi_adega, setPiAdega] = useState<string>('');
+  const [pi_filtracao, setPiFiltracao] = useState<string>('');
 
   const [notes, setNotes] = useState<string>('');
 
@@ -60,16 +60,16 @@ export default function LaunchForm({ onSaveSuccess, existingRecords }: LaunchFor
 
   useEffect(() => {
     if (isDuplicate) {
-      setErrorMessage('Já existe um lançamento para este turno nesta data.');
+      setErrorMessage(`Já existe um lançamento cadastrado para a data ${date} no Turno ${shift}.`);
     } else {
       setErrorMessage(null);
     }
   }, [date, shift, existingRecords, isDuplicate]);
 
-  // Helper to parse float safely
+  // Helper to parse float safely (returns null for empty or invalid strings)
   const parseVal = (str: string): number | null => {
     if (!str || str.trim() === '') return null;
-    const cleanStr = str.replace(',', '.');
+    const cleanStr = str.replace(',', '.').trim();
     const num = parseFloat(cleanStr);
     return isNaN(num) ? null : num;
   };
@@ -78,6 +78,7 @@ export default function LaunchForm({ onSaveSuccess, existingRecords }: LaunchFor
   const evaluateIV = (key: string, rawVal: string): boolean | null => {
     if (rawVal.trim() === '') return null; // null means not entered
     const val = parseVal(rawVal);
+    if (val === null) return null;
     const metaObj = IV_METAS.find(m => m.key === key);
     if (!metaObj) return null;
     return metaObj.check(val);
@@ -134,9 +135,9 @@ export default function LaunchForm({ onSaveSuccess, existingRecords }: LaunchFor
     setF2PerdaHl('');
     setF1Extratinho('');
     setF2Extratinho('');
-    setPiBrassagem('0');
-    setPiAdega('0');
-    setPiFiltracao('0');
+    setPiBrassagem('');
+    setPiAdega('');
+    setPiFiltracao('');
     setNotes('');
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -146,8 +147,39 @@ export default function LaunchForm({ onSaveSuccess, existingRecords }: LaunchFor
     e.preventDefault();
     setSuccessMessage(null);
 
+    // Validation: Check if user provided at least one indicator or note
+    const allInputValues = [
+      sala1_ipe,
+      sala2_ipe,
+      extrato_agua_s1,
+      extrato_agua_s2,
+      ctf1_perda_pct,
+      ctf3_perda_pct,
+      ctf1_perda_hl,
+      ctf3_perda_hl,
+      ctf1_deslodamentos,
+      ctf3_deslodamentos,
+      centrifuga_brux_hl,
+      f01_perda_pct,
+      f02_perda_pct,
+      f1_perda_hl,
+      f2_perda_hl,
+      f1_extratinho,
+      f2_extratinho,
+      pi_brassagem,
+      pi_adega,
+      pi_filtracao,
+      notes,
+    ];
+
+    const hasAnyUserInput = allInputValues.some((v) => v && v.trim() !== '');
+    if (!hasAnyUserInput) {
+      setErrorMessage('Por favor, preencha pelo menos um indicador ou observação antes de salvar.');
+      return;
+    }
+
     if (isDuplicate) {
-      setErrorMessage('Já existe um lançamento para este turno nesta data.');
+      setErrorMessage(`Já existe um lançamento cadastrado para a data ${date} no Turno ${shift}.`);
       return;
     }
 
@@ -191,7 +223,7 @@ export default function LaunchForm({ onSaveSuccess, existingRecords }: LaunchFor
       }
 
       await createRecord(recordData);
-      setSuccessMessage('Lançamento salvo com sucesso no banco de dados! O registro já está disponível no Histórico.');
+      setSuccessMessage(`Lançamento do Turno ${shift} (${date}) gravado com sucesso no banco de dados.`);
       setErrorMessage(null);
 
       // Clear input fields
@@ -212,15 +244,10 @@ export default function LaunchForm({ onSaveSuccess, existingRecords }: LaunchFor
       setF2PerdaHl('');
       setF1Extratinho('');
       setF2Extratinho('');
-      setPiBrassagem('0');
-      setPiAdega('0');
-      setPiFiltracao('0');
+      setPiBrassagem('');
+      setPiAdega('');
+      setPiFiltracao('');
       setNotes('');
-
-      // Auto advance shift to next shift
-      const shiftOrder: ShiftType[] = ['A', 'B', 'C', 'D'];
-      const nextShift = shiftOrder[(shiftOrder.indexOf(shift) + 1) % 4];
-      setShift(nextShift);
 
       onSaveSuccess();
     } catch (err: any) {
