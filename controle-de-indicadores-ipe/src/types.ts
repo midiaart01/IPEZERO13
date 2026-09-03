@@ -5,13 +5,6 @@ export interface IPERecord {
   date: string; // YYYY-MM-DD
   shift: ShiftType;
   createdAt: string;
-  updatedAt?: string;
-  editedAt?: string | null;
-  createdBy?: string;
-  updatedBy?: string;
-  lastModifiedItem?: string | null;
-  lastPreviousValue?: string | null;
-  lastCurrentValue?: string | null;
 
   // Brassagem
   sala1_ipe: number | null; // Meta: < -0.5
@@ -222,29 +215,3 @@ export interface DashboardStats {
   avgScoreMonth: number;
   maxDailyScoreMonth: number;
 }
-
-export const RECORD_FIELD_LABELS: Record<string, string> = {
-  date: 'Data do Lançamento',
-  shift: 'Turno',
-  sala1_ipe: 'Sala 1 - IPE',
-  sala2_ipe: 'Sala 2 - IPE',
-  extrato_agua_s1: 'Extrato em Água Sala 1',
-  extrato_agua_s2: 'Extrato em Água Sala 2',
-  ctf1_perda_pct: 'CTF 1 - Perda %',
-  ctf3_perda_pct: 'CTF 3 - Perda %',
-  ctf1_perda_hl: 'CTF 1 - Perda hL',
-  ctf3_perda_hl: 'CTF 3 - Perda hL',
-  ctf1_deslodamentos: 'CTF 1 - Deslodamentos',
-  ctf3_deslodamentos: 'CTF 3 - Deslodamentos',
-  centrifuga_brux_hl: 'Centrífuga Brux - Perda hL',
-  f01_perda_pct: 'F01 - Perda %',
-  f02_perda_pct: 'F02 - Perda %',
-  f1_perda_hl: 'F1 - Perda hL',
-  f2_perda_hl: 'F2 - Perda hL',
-  f1_extratinho: 'F1 - Extratinho',
-  f2_extratinho: 'F2 - Extratinho',
-  pi_brassagem: 'PI Brassagem',
-  pi_adega: 'PI Adega',
-  pi_filtracao: 'PI Filtração',
-  notes: 'Observações',
-};

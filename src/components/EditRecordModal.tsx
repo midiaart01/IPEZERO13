@@ -181,7 +181,7 @@ export default function EditRecordModal({
       ivsScore: ivsMetCount,
       piScore: totalPIs,
       totalScore: totalScore,
-      notes: notes.trim() || undefined,
+      notes: notes.trim() || '',
     };
 
     try {
@@ -192,7 +192,7 @@ export default function EditRecordModal({
         return;
       }
 
-      await updateRecord(record.id, updatedData);
+      await updateRecord(record.id, updatedData, record);
       onSaveSuccess();
       onClose();
     } catch (err: any) {

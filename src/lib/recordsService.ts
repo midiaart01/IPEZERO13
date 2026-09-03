@@ -9,7 +9,7 @@ import {
   getDoc,
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from './firebase';
-import { IPERecord, ShiftType } from '../types';
+import { IPERecord, ShiftType, RECORD_FIELD_LABELS } from '../types';
 
 const LOCAL_STORAGE_KEY = 'ipe_records_data_v2';
 const FIRESTORE_COLLECTION = 'ipe_records';
@@ -172,7 +172,6 @@ export async function saveRecord(recordData: Omit<IPERecord, 'id' | 'createdAt'>
     ...recordData,
     id: docId,
     createdAt: now,
-    updatedAt: now,
     createdBy: userEmail,
   };
 
@@ -200,55 +199,186 @@ export async function saveRecord(recordData: Omit<IPERecord, 'id' | 'createdAt'>
 
 export const createRecord = saveRecord;
 
+export interface FieldModification {
+  item: string;
+  previousValue: string;
+  currentValue: string;
+}
+
+/**
+ * Detect differences between the original record and updated fields.
+ * Returns only items that actually changed.
+ */
+export function detectRecordChanges(
+  original: IPERecord,
+  updated: Partial<IPERecord>
+): FieldModification[] {
+  const changes: FieldModification[] = [];
+  const fieldKeys: (keyof IPERecord)[] = [
+    'date',
+    'shift',
+    'sala1_ipe',
+    'sala2_ipe',
+    'extrato_agua_s1',
+    'extrato_agua_s2',
+    'ctf1_perda_pct',
+    'ctf3_perda_pct',
+    'ctf1_perda_hl',
+    'ctf3_perda_hl',
+    'ctf1_deslodamentos',
+    'ctf3_deslodamentos',
+    'centrifuga_brux_hl',
+    'f01_perda_pct',
+    'f02_perda_pct',
+    'f1_perda_hl',
+    'f2_perda_hl',
+    'f1_extratinho',
+    'f2_extratinho',
+    'pi_brassagem',
+    'pi_adega',
+    'pi_filtracao',
+    'notes',
+  ];
+
+  for (const key of fieldKeys) {
+    if (!(key in updated)) continue;
+    const oldVal = original[key];
+    const newVal = updated[key];
+
+    if (key === 'notes') {
+      const oldStr = (oldVal as string || '').trim();
+      const newStr = (newVal as string || '').trim();
+      if (oldStr !== newStr) {
+        changes.push({
+          item: RECORD_FIELD_LABELS[key] || String(key),
+          previousValue: oldStr || '(Vazio)',
+          currentValue: newStr || '(Vazio)',
+        });
+      }
+    } else if (
+      typeof oldVal === 'number' ||
+      typeof newVal === 'number' ||
+      oldVal === null ||
+      newVal === null ||
+      oldVal === undefined ||
+      newVal === undefined
+    ) {
+      const oldNum = oldVal === null || oldVal === undefined ? null : Number(oldVal);
+      const newNum = newVal === null || newVal === undefined ? null : Number(newVal);
+      if (oldNum !== newNum) {
+        changes.push({
+          item: RECORD_FIELD_LABELS[key] || String(key),
+          previousValue: oldNum !== null ? String(oldNum) : '(Vazio)',
+          currentValue: newNum !== null ? String(newNum) : '(Vazio)',
+        });
+      }
+    } else {
+      const oldStr = String(oldVal ?? '').trim();
+      const newStr = String(newVal ?? '').trim();
+      if (oldStr !== newStr) {
+        changes.push({
+          item: RECORD_FIELD_LABELS[key] || String(key),
+          previousValue: oldStr || '(Vazio)',
+          currentValue: newStr || '(Vazio)',
+        });
+      }
+    }
+  }
+
+  return changes;
+}
+
 /**
  * UPDATE EXISTING RECORD IN FIRESTORE
- * Preserves initial creation metadata and adds audit trace.
+ * Preserves initial creation metadata and adds full audit trace of the latest alteration.
+ * Guarantees no automated or accidental changes.
  */
-export async function updateRecord(id: string, updatedFields: Partial<IPERecord>): Promise<IPERecord> {
+export async function updateRecord(
+  id: string,
+  updatedFields: Partial<IPERecord>,
+  originalRecord?: IPERecord
+): Promise<IPERecord> {
+  const list = getLocalRecords();
+  const currentRecord = originalRecord || list.find((r) => r.id === id);
+
+  // If we have the original record, verify whether any fields were actually modified
+  let changes: FieldModification[] = [];
+  if (currentRecord) {
+    changes = detectRecordChanges(currentRecord, updatedFields);
+    // If the user made no changes, do NOT register any alteration or update timestamps!
+    if (changes.length === 0) {
+      return currentRecord;
+    }
+  }
+
   const now = new Date().toISOString();
   const userEmail = auth.currentUser?.email || 'operador_local';
 
-  const fieldsToUpdate = {
+  // Extract only the items that changed for this latest alteration
+  const lastModifiedItem =
+    changes.length > 0
+      ? changes.map((c) => c.item).join('; ')
+      : (updatedFields.lastModifiedItem || 'Modificado manualmente');
+  const lastPreviousValue =
+    changes.length > 0
+      ? changes.map((c) => c.previousValue).join('; ')
+      : (updatedFields.lastPreviousValue ?? '');
+  const lastCurrentValue =
+    changes.length > 0
+      ? changes.map((c) => c.currentValue).join('; ')
+      : (updatedFields.lastCurrentValue ?? '');
+
+  const fieldsToUpdate: Partial<IPERecord> = {
     ...updatedFields,
     updatedAt: now,
+    editedAt: now,
     updatedBy: userEmail,
+    lastModifiedItem,
+    lastPreviousValue,
+    lastCurrentValue,
   };
 
-  const cleanFields = sanitizeObject(fieldsToUpdate);
+  const newDate = updatedFields.date || currentRecord?.date;
+  const newShift = updatedFields.shift || currentRecord?.shift;
+  const targetId = newDate && newShift ? getRecordDocId(newDate, newShift) : id;
+
+  const mergedRecord: IPERecord = {
+    ...(currentRecord || ({} as IPERecord)),
+    ...fieldsToUpdate,
+    id: targetId,
+    date: newDate || currentRecord?.date || '',
+    shift: newShift || currentRecord?.shift || 'A',
+  };
+
+  const cleanData = sanitizeObject(mergedRecord);
 
   try {
-    const docRef = doc(db, FIRESTORE_COLLECTION, id);
-    await updateDoc(docRef, cleanFields);
+    if (targetId !== id) {
+      // Date or shift was modified: create at targetId and remove old document
+      const targetDocRef = doc(db, FIRESTORE_COLLECTION, targetId);
+      await setDoc(targetDocRef, cleanData);
+
+      const oldDocRef = doc(db, FIRESTORE_COLLECTION, id);
+      await deleteDoc(oldDocRef);
+    } else {
+      const docRef = doc(db, FIRESTORE_COLLECTION, id);
+      await updateDoc(docRef, sanitizeObject(fieldsToUpdate));
+    }
   } catch (error) {
     console.error('Erro ao atualizar no Firestore:', error);
     try {
-      handleFirestoreError(error, OperationType.UPDATE, `${FIRESTORE_COLLECTION}/${id}`);
+      handleFirestoreError(error, OperationType.UPDATE, `${FIRESTORE_COLLECTION}/${targetId}`);
     } catch (e) {
       console.warn('Fallback local devido a erro:', e);
     }
   }
 
   // Update local cache
-  const list = getLocalRecords();
-  const index = list.findIndex((r) => r.id === id);
-  let updatedRecord: IPERecord;
+  const updatedList = list.filter((r) => r.id !== id && r.id !== targetId);
+  updatedList.unshift(mergedRecord);
+  saveLocalRecords(updatedList);
 
-  if (index !== -1) {
-    list[index] = {
-      ...list[index],
-      ...fieldsToUpdate,
-      id,
-    };
-    updatedRecord = list[index];
-    saveLocalRecords(list);
-  } else {
-    // If not in local cache, re-fetch actual record
-    const records = await fetchRecords();
-    const found = records.find(r => r.id === id);
-    updatedRecord = found || ({ id, ...fieldsToUpdate } as IPERecord);
-  }
-
-  return updatedRecord;
+  return mergedRecord;
 }
 
 /**

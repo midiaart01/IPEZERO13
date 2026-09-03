@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Download, FileSpreadsheet, Trash2, BookOpen, CheckCircle, ShieldAlert, Database } from 'lucide-react';
+import { Download, RefreshCw, BookOpen, CheckCircle, ShieldAlert, Database } from 'lucide-react';
 import { IPERecord, IV_METAS } from '../types';
-import { clearAllRecords } from '../lib/recordsService';
-import { exportRecordsToExcel } from '../lib/excelExport';
+import { resetRecords } from '../lib/recordsService';
+import { isSupabaseConfigured } from '../lib/supabase';
 
 interface ManagerPanelProps {
   records: IPERecord[];
@@ -10,15 +10,7 @@ interface ManagerPanelProps {
 }
 
 export default function ManagerPanel({ records, onDataReset }: ManagerPanelProps) {
-  const [isClearing, setIsClearing] = useState(false);
-
-  const handleExportExcel = () => {
-    if (records.length === 0) {
-      alert('Nenhum dado disponível para exportação.');
-      return;
-    }
-    exportRecordsToExcel(records, `IPE_Base_Completa_${new Date().toISOString().split('T')[0]}.xlsx`);
-  };
+  const [isResetting, setIsResetting] = useState(false);
 
   const handleExportCSV = () => {
     if (records.length === 0) {
@@ -53,8 +45,7 @@ export default function ManagerPanel({ records, onDataReset }: ManagerPanelProps
       'PI Brassagem',
       'PI Adega',
       'PI Filtração',
-      'Observações',
-      'Criado Em'
+      'Observações'
     ];
 
     const rows = records.map((r) => [
@@ -84,8 +75,7 @@ export default function ManagerPanel({ records, onDataReset }: ManagerPanelProps
       r.pi_brassagem,
       r.pi_adega,
       r.pi_filtracao,
-      `"${(r.notes || '').replace(/"/g, '""')}"`,
-      r.createdAt || ''
+      `"${(r.notes || '').replace(/"/g, '""')}"`
     ]);
 
     const csvContent =
@@ -101,24 +91,24 @@ export default function ManagerPanel({ records, onDataReset }: ManagerPanelProps
     document.body.removeChild(link);
   };
 
-  const handleClearAllData = async () => {
+  const handleResetSeedData = async () => {
     if (
       !confirm(
-        'ATENÇÃO: Deseja realmente excluir todos os lançamentos do banco de dados Firestore? Esta ação é irreversível e removerá todos os registros reais cadastrados.'
+        'Deseja restaurar os dados de demonstração originais no Supabase? Isso atualizará a base com os lançamentos de exemplo.'
       )
     ) {
       return;
     }
 
-    setIsClearing(true);
+    setIsResetting(true);
     try {
-      await clearAllRecords();
-      alert('Banco de dados limpo com sucesso. Nenhum registro fictício foi criado.');
+      await resetRecords();
+      alert('Dados de demonstração restaurados com sucesso.');
       onDataReset();
     } catch (err) {
-      alert('Erro ao limpar base de dados.');
+      alert('Erro ao restaurar dados.');
     } finally {
-      setIsClearing(false);
+      setIsResetting(false);
     }
   };
 
@@ -132,44 +122,37 @@ export default function ManagerPanel({ records, onDataReset }: ManagerPanelProps
             <span>Painel de Controle e Gestão Operacional</span>
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Ferramentas administrativas para exportação de dados, referência de metas IPE e manutenção do banco Firestore.
+            Ferramentas administrativas para exportação de dados, referência de metas IPE e manutenção do banco.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+          <div className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold ${
+            isSupabaseConfigured 
+              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+              : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+          }`}>
             <Database className="w-4 h-4" />
-            <span>Firebase Firestore Conectado</span>
+            <span>{isSupabaseConfigured ? 'Supabase Conectado' : 'Supabase (Modo Demo / Local)'}</span>
           </div>
-
-          <button
-            id="manager-export-excel-btn"
-            onClick={handleExportExcel}
-            className="flex items-center space-x-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition-all shadow-lg shadow-emerald-950/40 cursor-pointer"
-            title="Exportar todos os dados diretamente em formato Excel (.xlsx)"
-          >
-            <FileSpreadsheet className="w-4 h-4" />
-            <span>Extrair Excel (.xlsx)</span>
-          </button>
 
           <button
             id="manager-export-csv-btn"
             onClick={handleExportCSV}
-            className="flex items-center space-x-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-all cursor-pointer"
-            title="Exportar dados em formato CSV"
+            className="flex items-center space-x-2 px-4 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs rounded-xl transition-all shadow-lg shadow-cyan-600/20"
           >
             <Download className="w-4 h-4" />
-            <span>Exportar CSV</span>
+            <span>Exportar CSV Completo</span>
           </button>
 
           <button
-            id="manager-clear-data-btn"
-            onClick={handleClearAllData}
-            disabled={isClearing}
-            className="flex items-center space-x-2 px-4 py-2.5 bg-red-950/60 hover:bg-red-900 text-red-300 hover:text-white font-bold text-xs rounded-xl border border-red-800/50 transition-all disabled:opacity-50 cursor-pointer"
+            id="manager-reset-data-btn"
+            onClick={handleResetSeedData}
+            disabled={isResetting}
+            className="flex items-center space-x-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl border border-slate-700 transition-all"
           >
-            <Trash2 className="w-4 h-4" />
-            <span>{isClearing ? 'Limpando...' : 'Limpar Base de Dados'}</span>
+            <RefreshCw className="w-4 h-4" />
+            <span>{isResetting ? 'Restaurando...' : 'Restaurar Dados Exemplo'}</span>
           </button>
         </div>
       </div>
